@@ -1,0 +1,272 @@
+use unicode_reader::CodePoints;
+
+pub struct Position {
+    line: usize,
+    col: usize,
+    byte: usize,
+}
+
+pub enum Error {
+    Unknown,
+    IoError(String),
+    CharMissing(char),
+    CharMismatch{expected: char, actual: char},
+    CharOutside{expected: Vec<char>, actual: char},
+    SignNeeded,
+    DigitsNeeded,
+    HexCharNeeded,
+    UnrecognisedLiteral,
+    InvalidValue,
+    OutOfBounds,
+}
+
+type Chars<R> = std::iter::Peekable<CodePoints<std::io::Bytes<R>>>;
+
+type ValidationResult = Result<(), (Error, Position)>;
+type ValidationPart<R> = Result<Chars<R>, (Error, Position, Chars<R>)>;
+
+fn advance<I: Iterator>(mut iter: I) -> I {
+    iter.next();
+    iter
+}
+
+fn io_error(e: &std::io::Error) -> Error {
+    Error::IoError(e.to_string())
+}
+
+fn validate<R: std::io::Read>(chars: Chars<R>) -> ValidationResult {
+    match validate_value(chars) {
+        Ok(_) => Ok(()),
+        Err((e, p, _)) => Err((e, p)),
+    }
+}
+
+pub fn validate_bytes<R: std::io::Read>(bytes: std::io::Bytes<R>) -> ValidationResult {
+    validate(CodePoints::from(bytes).peekable())
+}
+
+fn skip<R: std::io::Read, F: Fn(char) -> bool>(mut chars: Chars<R>, f: F) -> Chars<R> {
+    loop {
+        match chars.peek() {
+            Some(Ok(ch)) => {
+                if !f(*ch) { return chars; }
+            }
+            _ => return chars,
+        }
+    }
+}
+
+fn skip_ws<R: std::io::Read>(chars: Chars<R>) -> Chars<R> {
+    todo!()
+}
+
+fn validate_with<R: std::io::Read, F: FnOnce(Chars<R>, char) -> ValidationPart<R>>(mut chars: Chars<R>, f: F) -> ValidationPart<R> {
+    match chars.peek() {
+        None => Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
+        Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
+        Some(Ok(c)) => {
+            let x = *c;
+            f(chars, x)
+        }
+    }
+}
+
+fn validate_char<R: std::io::Read>(chars: Chars<R>, ch: char) -> ValidationPart<R> {
+    validate_with(chars, |chars: Chars<R>, c: char|
+        if c == ch {Ok(advance(chars))}
+        else {Err((Error::CharMismatch{expected: ch, actual: c}, Position{line:0, col:0, byte:0}, chars))})
+}
+
+fn validate_escaped_char<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    let escaped = ['\"', '\\', '\r', '\n', '\t', '\u{0008}', '\u{000C}'];
+    validate_with(chars, |chars: Chars<R>, c: char|
+        if escaped.contains(&c) {Ok(advance(chars))}
+        else {Err((Error::CharOutside{expected: escaped.into(), actual: c}, Position{line:0, col:0, byte:0}, chars))})
+}
+
+fn validate_hex<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    fn is_hex(ch: char) -> bool {
+        ('0'..='9').contains(&ch) || ('a'..='f').contains(&ch) || ('A'..='F').contains(&ch)
+    }
+
+    validate_with(chars, |chars: Chars<R>, c: char|
+        if is_hex(c) {Ok(advance(chars))}
+        else {Err((Error::HexCharNeeded, Position{line:0, col:0, byte:0}, chars))})
+}
+
+fn validate_number_digits<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    fn is_digit(ch: char) -> bool {
+        match ch {
+            '0'..='9' => true,
+            _ => false,
+        }
+    }
+
+    let chars = validate_with(chars, |chars: Chars<R>, c: char|
+        if is_digit(c) {Ok(advance(chars))}
+        else {Err((Error::DigitsNeeded, Position{line:0, col:0, byte:0}, chars))})?;
+    let chars = skip(chars, is_digit);
+    Ok(chars)
+}
+
+fn validate_value<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    let mut chars = skip_ws(chars);
+    match chars.next() {
+        Some(Ok('0'..='9')) => validate_number(chars),
+        Some(Ok('-')) => validate_number(chars),
+        Some(Ok('"')) => {
+            let chars = validate_string_contents(chars)?;
+            validate_char(chars, '"')
+        },
+        Some(Ok('[')) => {
+            let chars = validate_array_elements(chars)?;
+            validate_char(chars, ']')
+        },
+        Some(Ok('{')) => {
+            let chars = validate_object_pairs(chars)?;
+            validate_char(chars, '}')
+        },
+        Some(Ok(x)) => validate_literal(x, chars),
+        Some(Err(e)) => Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
+        None => Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
+    }
+}
+
+fn validate_number<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    let mut chars = validate_number_integer_part(chars)?;
+    match chars.peek() {
+        None => Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
+        Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
+        Some(Ok('.')) => {
+            let mut chars = validate_number_fraction_part(advance(chars))?;
+            match chars.peek() {
+                None => Ok(chars),
+                Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
+                Some(Ok('e')) => {
+                    let chars = validate_plus_or_minus(chars)?;
+                    Ok(validate_number_exponent_part(advance(chars))?)
+                },
+                Some(Ok(_)) => return Ok(chars),
+            }
+        },
+        Some(Ok('e')) => {
+            let chars = validate_plus_or_minus(chars)?;
+            let mut chars = validate_number_exponent_part(chars)?;
+            match chars.peek() {
+                None => Ok(chars),
+                Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
+                Some(Ok(_)) => return Ok(chars),
+            }
+        },
+        Some(Ok(_)) => return Ok(chars),
+    }
+}
+
+fn validate_plus_or_minus<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    fn is_plus_or_minus(ch: char) -> bool {
+        match ch {
+            '+' => true,
+            '-' => true,
+            _ => false,
+        }
+    }
+
+    validate_with(chars, |chars: Chars<R>, ch: char|
+        if is_plus_or_minus(ch) {Ok(chars)}
+        else {Err((Error::SignNeeded, Position{line:0, col:0, byte:0}, chars))})
+}
+
+fn validate_number_integer_part<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    validate_number_digits(chars)
+}
+
+fn validate_number_fraction_part<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    validate_number_digits(chars)
+}
+
+fn validate_number_exponent_part<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    validate_number_digits(chars)
+}
+
+fn validate_string_contents<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
+    fn unescaped(ch: char) -> bool {
+        match ch {
+            '"' => false,
+            '\\' => false,
+            _ => true,
+        }
+    }
+    loop {
+        chars = skip(chars, unescaped);
+        match chars.peek() {
+            None => return Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
+            Some(Err(e)) => return Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
+            Some(Ok('"')) => return Ok(chars),
+            Some(Ok('u')) => {
+                chars = validate_hex(chars)?;
+                chars = validate_hex(chars)?;
+                chars = validate_hex(chars)?;
+                chars = validate_hex(chars)?;
+            },
+            Some(Ok('\\')) => {
+                chars = validate_escaped_char(chars)?;
+            },
+            Some(Ok(_)) => unreachable!(),
+        };
+    }
+}
+
+fn validate_string<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    let chars = validate_char(chars, '"')?;
+    let chars = validate_string_contents(chars)?;
+    validate_char(chars, '"')
+}
+
+fn validate_array_elements<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
+    loop {
+        chars = validate_value(chars)?;
+        match validate_char(chars, ',') {
+            Ok(c) => {chars = c},
+            Err((_, _, c)) => {return Ok(c)},
+        }
+    }
+}
+
+fn validate_object_pairs<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
+    loop {
+        chars = validate_string(chars)?;
+        chars = validate_char(chars, ':')?;
+        chars = validate_value(chars)?;
+        match validate_char(chars, ',') {
+            Ok(c) => {chars = c},
+            Err((_, _, c)) => {return Ok(c)},
+        }
+    }
+}
+
+fn validate_str<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationPart<R> {
+    let mut s = s.chars();
+    loop {
+        match s.next() {
+            None => return Ok(chars),
+            Some(s) =>
+                match chars.next() {
+                    None => return Err((Error::CharMissing(s), Position{line:0, col:0, byte:0}, chars)),
+                    Some(Err(e)) => return Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
+                    Some(Ok(ch)) =>
+                        if ch != s {
+                            return Err((Error::CharMismatch{expected: s, actual: ch}, Position{line:0, col:0, byte:0}, chars))
+                        },
+                },
+        }
+    }
+}
+
+fn validate_literal<R: std::io::Read>(head: char, rest: Chars<R>) -> ValidationPart<R> {
+    match head {
+        'n' => validate_str(rest, "ull"),
+        't' => validate_str(rest, "rue"),
+        'f' => validate_str(rest, "alse"),
+        _ => Err((Error::UnrecognisedLiteral, Position{line:0, col:0, byte:0}, rest)),
+    }
+}
