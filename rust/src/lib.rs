@@ -244,6 +244,7 @@ fn validate_string<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
 }
 
 fn validate_array_elements<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
+    if let Some(Ok(']')) = chars.peek() {return Ok(chars);}
     loop {
         chars = validate_value(chars)?;
         match validate_char(chars, ',') {
@@ -254,6 +255,7 @@ fn validate_array_elements<R: std::io::Read>(mut chars: Chars<R>) -> ValidationP
 }
 
 fn validate_object_pairs<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
+    if let Some(Ok('}')) = chars.peek() {return Ok(chars);}
     loop {
         chars = validate_string(chars)?;
         chars = validate_char(chars, ':')?;
