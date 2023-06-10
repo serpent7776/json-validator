@@ -14,6 +14,7 @@ impl std::fmt::Display for Position {
     }
 }
 
+#[derive(PartialEq)]
 pub enum Error {
     Unknown,
     EmptyString,
@@ -303,4 +304,57 @@ fn validate_literal<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> 
         Some(Ok(_)) => Err((Error::UnrecognisedLiteral, Position{line:0, col:0, byte:0}, chars)),
         Some(Err(e)) => Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn fails<Arg: std::fmt::Display + ?Sized, F: FnOnce(&Arg) -> ValidationResult>(f: F, arg: &Arg, expected_err: Error) {
+        let actual = f(arg);
+        match actual {
+            Err((actual_err, _)) => assert!(
+                expected_err == actual_err,
+                "\n\tFailed for {}: Expected to fail with {}, but failed with {} instead",
+                arg,
+                expected_err,
+                actual_err
+            ),
+            Ok(()) => {},
+        }
+    }
+
+    fn ok<Arg: std::fmt::Display + ?Sized, F: FnOnce(&Arg) -> ValidationResult>(f: F, arg: &Arg) {
+        let actual = f(arg);
+        match actual {
+            Ok(()) => {},
+            Err((actual_err, _)) => assert!(
+                false,
+                "\n\tFailed for {}: Expected to succeed, but failed with {}",
+                arg, actual_err
+            ),
+        }
+    }
+
+    macro_rules! fails {
+        ($f: ident, $str: expr, $err: expr, $name: ident) => {
+            #[test]
+            fn $name() {
+                fails($f, $str, $err);
+            }
+        };
+    }
+
+    macro_rules! ok {
+        ($f: ident, $str: expr, $name: ident) => {
+            #[test]
+            fn $name() {
+                ok($f, $str);
+            }
+        };
+    }
+
+    fails!(validate_str, "", Error::EmptyString, empty_string_fails_to_parse);
+    fails!(validate_str, "x", Error::UnrecognisedLiteral, incorrect_value_fails);
+
 }
