@@ -357,4 +357,10 @@ mod tests {
     fails!(validate_str, "", Error::EmptyString, empty_string_fails_to_parse);
     fails!(validate_str, "x", Error::UnrecognisedLiteral, incorrect_value_fails);
 
+    // literals
+    ok!(validate_str, "null", null_parses_ok);
+    ok!(validate_str, "true", true_parses_ok);
+    ok!(validate_str, "false", false_parses_ok);
+    fails!(validate_str, "truefalse", Error::UnrecognisedLiteral, unknown_ident_truefalse);
+
 }
