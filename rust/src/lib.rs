@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use unicode_reader::CodePoints;
 
 pub struct Position {
@@ -65,6 +67,10 @@ fn validate<R: std::io::Read>(chars: Chars<R>) -> ValidationResult {
 
 pub fn validate_bytes<R: std::io::Read>(bytes: std::io::Bytes<R>) -> ValidationResult {
     validate(CodePoints::from(bytes).peekable())
+}
+
+pub fn validate_str(s: &str) -> ValidationResult {
+    validate(CodePoints::from(<str as AsRef<[u8]>>::as_ref(s).bytes()).peekable())
 }
 
 fn skip<R: std::io::Read, F: Fn(char) -> bool>(mut chars: Chars<R>, f: F) -> Chars<R> {
@@ -267,7 +273,7 @@ fn validate_object_pairs<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPar
     }
 }
 
-fn validate_str<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationPart<R> {
+fn validate_chars<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationPart<R> {
     let mut s = s.chars();
     loop {
         match s.next() {
@@ -288,9 +294,9 @@ fn validate_str<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationPar
 fn validate_literal<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
     match chars.next() {
         None => return Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
-        Some(Ok('n')) => validate_str(advance(chars), "ull"),
-        Some(Ok('t')) => validate_str(advance(chars), "rue"),
-        Some(Ok('f')) => validate_str(advance(chars), "alse"),
+        Some(Ok('n')) => validate_chars(advance(chars), "ull"),
+        Some(Ok('t')) => validate_chars(advance(chars), "rue"),
+        Some(Ok('f')) => validate_chars(advance(chars), "alse"),
         Some(Ok(_)) => Err((Error::UnrecognisedLiteral, Position{line:0, col:0, byte:0}, chars)),
         Some(Err(e)) => Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
     }
