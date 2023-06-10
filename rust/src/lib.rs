@@ -74,6 +74,7 @@ fn skip<R: std::io::Read, F: Fn(char) -> bool>(mut chars: Chars<R>, f: F) -> Cha
         match chars.peek() {
             Some(Ok(ch)) => {
                 if !f(*ch) { return chars; }
+                else { chars.next() };
             }
             _ => return chars,
         }
@@ -133,24 +134,23 @@ fn validate_number_digits<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R
     Ok(chars)
 }
 
-fn validate_value<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
-    let mut chars = skip_ws(chars);
-    match chars.next() {
+fn validate_value<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
+    match chars.peek() {
         Some(Ok('0'..='9')) => validate_number(chars),
-        Some(Ok('-')) => validate_number(chars),
+        Some(Ok('-')) => validate_number(advance(chars)),
         Some(Ok('"')) => {
-            let chars = validate_string_contents(chars)?;
+            let chars = validate_string_contents(advance(chars))?;
             validate_char(chars, '"')
         },
         Some(Ok('[')) => {
-            let chars = validate_array_elements(chars)?;
+            let chars = validate_array_elements(advance(chars))?;
             validate_char(chars, ']')
         },
         Some(Ok('{')) => {
-            let chars = validate_object_pairs(chars)?;
+            let chars = validate_object_pairs(advance(chars))?;
             validate_char(chars, '}')
         },
-        Some(Ok(x)) => validate_literal(x, chars),
+        Some(Ok(_)) => validate_literal(chars),
         Some(Err(e)) => Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
         None => Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
     }
@@ -286,11 +286,13 @@ fn validate_str<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationPar
     }
 }
 
-fn validate_literal<R: std::io::Read>(head: char, rest: Chars<R>) -> ValidationPart<R> {
-    match head {
-        'n' => validate_str(rest, "ull"),
-        't' => validate_str(rest, "rue"),
-        'f' => validate_str(rest, "alse"),
-        _ => Err((Error::UnrecognisedLiteral, Position{line:0, col:0, byte:0}, rest)),
+fn validate_literal<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
+    match chars.next() {
+        None => return Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
+        Some(Ok('n')) => validate_str(advance(chars), "ull"),
+        Some(Ok('t')) => validate_str(advance(chars), "rue"),
+        Some(Ok('f')) => validate_str(advance(chars), "alse"),
+        Some(Ok(_)) => Err((Error::UnrecognisedLiteral, Position{line:0, col:0, byte:0}, chars)),
+        Some(Err(e)) => Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
     }
 }
