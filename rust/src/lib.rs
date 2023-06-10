@@ -18,7 +18,6 @@ pub enum Error {
     CharMissing(char),
     CharMismatch{expected: char, actual: char},
     CharOutside{expected: Vec<char>, actual: char},
-    SignNeeded,
     DigitsNeeded,
     HexCharNeeded,
     UnrecognisedLiteral,
@@ -34,7 +33,6 @@ impl std::fmt::Display for Error {
             Error::CharMissing(c) => write!(fmt, "char expected: {}", c),
             Error::CharMismatch{expected, actual} => write!(fmt, "{} expected, but {} found", expected, actual),
             Error::CharOutside{expected, actual} => write!(fmt, "One of {:?} expected, but {} found", expected, actual),
-            Error::SignNeeded => write!(fmt, "Sign (+ or -) expected"),
             Error::DigitsNeeded => write!(fmt, "Digit expected"),
             Error::HexCharNeeded => write!(fmt, "Hex char expected"),
             Error::UnrecognisedLiteral => write!(fmt, "Unrecognised literal found"),
@@ -195,9 +193,8 @@ fn validate_plus_or_minus<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R
         }
     }
 
-    validate_with(chars, |chars: Chars<R>, ch: char|
-        if is_plus_or_minus(ch) {Ok(chars)}
-        else {Err((Error::SignNeeded, Position{line:0, col:0, byte:0}, chars))})
+    let chars = skip(chars, |ch: char| is_plus_or_minus(ch));
+    Ok(chars)
 }
 
 fn validate_number_integer_part<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
