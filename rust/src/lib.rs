@@ -298,9 +298,9 @@ fn validate_chars<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationP
 fn validate_literal<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
     match chars.next() {
         None => return Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
-        Some(Ok('n')) => validate_chars(advance(chars), "ull"),
-        Some(Ok('t')) => validate_chars(advance(chars), "rue"),
-        Some(Ok('f')) => validate_chars(advance(chars), "alse"),
+        Some(Ok('n')) => validate_chars(chars, "ull"),
+        Some(Ok('t')) => validate_chars(chars, "rue"),
+        Some(Ok('f')) => validate_chars(chars, "alse"),
         Some(Ok(_)) => Err((Error::UnrecognisedLiteral, Position{line:0, col:0, byte:0}, chars)),
         Some(Err(e)) => Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
     }
