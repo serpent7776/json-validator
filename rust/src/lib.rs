@@ -6,6 +6,12 @@ pub struct Position {
     byte: usize,
 }
 
+impl std::fmt::Display for Position {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(fmt, ":{}:{} ({} byte)", self.line, self.col, self.byte)
+    }
+}
+
 pub enum Error {
     Unknown,
     IoError(String),
@@ -18,6 +24,24 @@ pub enum Error {
     UnrecognisedLiteral,
     InvalidValue,
     OutOfBounds,
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::Unknown => write!(fmt, "Unknown error"),
+            Error::IoError(s) => write!(fmt, "IO error: {}", s),
+            Error::CharMissing(c) => write!(fmt, "char expected: {}", c),
+            Error::CharMismatch{expected, actual} => write!(fmt, "{} expected, but {} found", expected, actual),
+            Error::CharOutside{expected, actual} => write!(fmt, "One of {:?} expected, but {} found", expected, actual),
+            Error::SignNeeded => write!(fmt, "Sign (+ or -) expected"),
+            Error::DigitsNeeded => write!(fmt, "Digit expected"),
+            Error::HexCharNeeded => write!(fmt, "Hex char expected"),
+            Error::UnrecognisedLiteral => write!(fmt, "Unrecognised literal found"),
+            Error::InvalidValue => write!(fmt, "Invalid value found"),
+            Error::OutOfBounds => write!(fmt, "Fatal error: invalid read"),
+        }
+    }
 }
 
 type Chars<R> = std::iter::Peekable<CodePoints<std::io::Bytes<R>>>;
