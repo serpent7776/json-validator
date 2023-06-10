@@ -16,6 +16,7 @@ impl std::fmt::Display for Position {
 
 pub enum Error {
     Unknown,
+    EmptyString,
     IoError(String),
     CharMissing(char),
     CharMismatch{expected: char, actual: char},
@@ -31,6 +32,7 @@ impl std::fmt::Display for Error {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Error::Unknown => write!(fmt, "Unknown error"),
+            Error::EmptyString => write!(fmt, "Empty input string"),
             Error::IoError(s) => write!(fmt, "IO error: {}", s),
             Error::CharMissing(c) => write!(fmt, "char expected: {}", c),
             Error::CharMismatch{expected, actual} => write!(fmt, "{} expected, but {} found", expected, actual),
@@ -58,7 +60,8 @@ fn io_error(e: &std::io::Error) -> Error {
     Error::IoError(e.to_string())
 }
 
-fn validate<R: std::io::Read>(chars: Chars<R>) -> ValidationResult {
+fn validate<R: std::io::Read>(mut chars: Chars<R>) -> ValidationResult {
+    if let None = chars.peek() {return Err((Error::EmptyString, Position{line:0, col:0, byte:0}));}
     match validate_value(chars) {
         Ok(_) => Ok(()),
         Err((e, p, _)) => Err((e, p)),
