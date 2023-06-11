@@ -167,7 +167,7 @@ fn validate_value<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
 fn validate_number<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
     let mut chars = validate_number_integer_part(chars)?;
     match chars.peek() {
-        None => Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
+        None => Ok(chars),
         Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
         Some(Ok('.')) => {
             let mut chars = validate_number_fraction_part(advance(chars))?;
