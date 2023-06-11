@@ -42,7 +42,7 @@ impl std::fmt::Display for Error {
             Error::HexCharNeeded => write!(fmt, "Hex char expected"),
             Error::UnrecognisedLiteral => write!(fmt, "Unrecognised literal found"),
             Error::InvalidValue => write!(fmt, "Invalid value found"),
-            Error::OutOfBounds => write!(fmt, "Fatal error: invalid read"),
+            Error::OutOfBounds => write!(fmt, "Unexpected end of input string"),
         }
     }
 }
