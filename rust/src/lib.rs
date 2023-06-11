@@ -182,13 +182,8 @@ fn validate_number<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
             }
         },
         Some(Ok('e')) => {
-            let chars = validate_plus_or_minus(chars)?;
-            let mut chars = validate_number_exponent_part(chars)?;
-            match chars.peek() {
-                None => Ok(chars),
-                Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
-                Some(Ok(_)) => return Ok(chars),
-            }
+            let chars = validate_plus_or_minus(advance(chars))?;
+            validate_number_exponent_part(chars)
         },
         Some(Ok(_)) => return Ok(chars),
     }
