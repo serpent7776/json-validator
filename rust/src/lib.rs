@@ -380,4 +380,25 @@ mod tests {
     fails!(validate_str, ".12", Error::UnrecognisedLiteral, float_without_integer_part_fails_to_parse);
     fails!(validate_str, "-.12", Error::DigitsNeeded, negative_float_without_integer_part_fails_to_parse);
 
+    // strings
+    ok!(validate_str, r#""""#, empty_string_parses_ok);
+    fails!(validate_str, r#"""#, Error::OutOfBounds, missing_ending_quote_in_empty_string);
+    ok!(validate_str, r#""foobar""#, nonempty_string_parses_ok);
+    ok!(validate_str, r#""a\nb""#, string_with_newline_parses_ok);
+    ok!(validate_str, r#""foo\\bar""#, string_with_escaped_backslash_parses_ok);
+    ok!(validate_str, r#""foo bar""#, string_with_space_parses_ok);
+    ok!(validate_str, r#""foo/bar""#, string_with_slash_parses_ok);
+    fails!(validate_str, r#""foobar"#, Error::OutOfBounds, missing_ending_quote_in_nonempty_string);
+    fails!(validate_str, r#""foo"bar"#, Error::InvalidValue, extra_letters_after_string);
+    fails!(validate_str, r#""foo\"bar"#, Error::OutOfBounds, missing_ending_quote_with_inner_escaped_quote);
+    ok!(validate_str, r#""a b c""#, string_with_inner_spaces_parses_ok);
+    ok!(validate_str, r#"" a b c ""#, string_with_leading_trailing_spaces_parses_ok);
+    ok!(validate_str, r#""foo\"bar""#, string_with_escaped_quote_parses_ok);
+    ok!(validate_str, r#""\u1234""#, unicode_symbol_parses_ok);
+    ok!(validate_str, r#""\u1234\uabcd""#, string_with_two_unicode_symbols_parses_ok);
+    ok!(validate_str, r#""\u1234\uabcd\u00Ff""#, string_with_three_unicode_symbols_parses_ok);
+    ok!(validate_str, r#""foo\u12cdbar""#, string_with_inner_unicode_symbol_parses_ok);
+    fails!(validate_str, r#""\u12cx""#, Error::HexCharNeeded, invalid_unicode_sequence);
+    fails!(validate_str, r#""\"#, Error::OutOfBounds, missing_ending_quote_with_escaped_quote);
+
 }
