@@ -444,4 +444,18 @@ mod tests {
     fails!(validate_str, r#"{"foo"}"#, Error::CharMismatch{expected: ':', actual: '}'}, missing_colon_and_value_after_key);
     fails!(validate_str, r#"{"foo":}"#, Error::InvalidValue, missing_value_after_key);
 
+    // values with spaces
+    fails!(validate_str, "   ", Error::EmptyString, just_spaces_fail_to_parse);
+    fails!(validate_str, " [  ", Error::OutOfBounds, missing_closing_bracket_with_spaces);
+    fails!(validate_str, " ]  ", Error::InvalidValue, missing_opening_bracket_with_spaces);
+    ok!(validate_str, "   null   ", null_with_spaces_parses_ok);
+    ok!(validate_str, "   true   ", true_with_spaces_parses_ok);
+    ok!(validate_str, "  false  ", false_with_spaces_parses_ok);
+    ok!(validate_str, r#"" \u1234 \uabcd \u00Ff ""#, string_with_unicodes_with_spaces_parses_ok);
+    ok!(validate_str, " [ true, false, null ] ", array_with_spaces_parses_ok);
+    ok!(validate_str, " [ true , false , null ] ", array_with_more_spaces_parses_ok);
+    ok!(validate_str, r#" { "a" : true , "b" : false , "c" : null } "#, object_with_spaces_parses_ok);
+    ok!(validate_str, r#" {  } "#, empty_object_with_spaces_parses_ok);
+    ok!(validate_str, r#" [  ] "#, empty_array_with_spaces_parses_ok);
+
 }
