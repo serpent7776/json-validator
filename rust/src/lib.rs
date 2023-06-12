@@ -404,4 +404,28 @@ mod tests {
     fails!(validate_str, r#""\u12cx""#, Error::HexCharNeeded, invalid_unicode_sequence);
     fails!(validate_str, r#""\"#, Error::OutOfBounds, missing_ending_quote_with_escaped_quote);
 
+    // arrays
+    ok!(validate_str, "[]", empty_array_parses_ok);
+    ok!(validate_str, "[null]", array_with_null_parses_ok);
+    ok!(validate_str, "[[null]]", nested_array_with_null_parses_ok);
+    ok!(validate_str, "[true]", array_with_true_parses_ok);
+    ok!(validate_str, "[false]", array_with_false_parses_ok);
+    ok!(validate_str, "[true,false]", array_with_true_and_false_parses_ok);
+    ok!(validate_str, "[1.2]", array_with_single_number_parses_ok);
+    ok!(validate_str, r#"["abc"]"#, array_with_string_parses_ok);
+    ok!(validate_str, "[[[]]]", deeply_nested_empty_array_parses_ok);
+    ok!(validate_str, "[[[\"a\"]]]", deeply_nested_array_with_string_parses_ok);
+    fails!(validate_str, "[", Error::OutOfBounds, sole_opening_bracket_fails_to_parse_as_array);
+    fails!(validate_str, "]", Error::InvalidValue, sole_closing_bracket_fails_to_parse_as_array);
+    fails!(validate_str, "[[[", Error::OutOfBounds, multiple_opening_brackets_fail_to_parse_as_array);
+    fails!(validate_str, "]]]", Error::InvalidValue, multiple_closing_brackets_fail_to_parse_as_array);
+    ok!(validate_str, "[1,2,3]", array_with_numbers_parses_ok);
+    fails!(validate_str, r#"[""#, Error::OutOfBounds, unclosed_string_in_unclosed_array_fail_to_parse);
+    ok!(validate_str, "[true,false,null,0]", array_with_different_types_parses_ok);
+    ok!(validate_str, "[[],[]]", nested_array_parses_ok);
+    fails!(validate_str, "[1,", Error::OutOfBounds, missing_closing_bracket_after_first_element);
+    fails!(validate_str, "[1,]", Error::InvalidValue, missing_second_element_in_array);
+    fails!(validate_str, "[1,2,]", Error::InvalidValue, missing_third_element_in_array);
+    fails!(validate_str, "[1,2,", Error::OutOfBounds, missing_closing_bracket_after_second_element);
+
 }
