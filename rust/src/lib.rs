@@ -428,4 +428,16 @@ mod tests {
     fails!(validate_str, "[1,2,]", Error::InvalidValue, missing_third_element_in_array);
     fails!(validate_str, "[1,2,", Error::OutOfBounds, missing_closing_bracket_after_second_element);
 
+    // objects
+    ok!(validate_str, "{}", empty_object_parses_ok);
+    ok!(validate_str, r#"{"1":1}"#, object_with_single_key_value_pair_parses_ok);
+    ok!(validate_str, r#"{"foo":"bar"}"#, object_with_string_value_parses_ok);
+    ok!(validate_str, r#"{"":""}"#, object_with_empty_key_parses_ok);
+    ok!(validate_str, r#"{"12":[]}"#, object_with_empty_array_value_parses_ok);
+    ok!(validate_str, r#"{"a":1,"b":2,"c":3}"#, object_with_many_integer_values_parses_ok);
+    ok!(validate_str, r#"{"x":9.8e7}"#, object_with_float_number_value_parses_ok);
+    fails!(validate_str, r#"{"1":1"#, Error::OutOfBounds, missing_closing_paren);
+    fails!(validate_str, r#"{"foo"}"#, Error::CharMismatch{expected: ':', actual: '}'}, missing_colon_and_value_after_key);
+    fails!(validate_str, r#"{"foo":}"#, Error::InvalidValue, missing_value_after_key);
+
 }
