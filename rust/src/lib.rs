@@ -158,7 +158,10 @@ fn validate_value<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
             let chars = validate_object_pairs(advance(chars))?;
             validate_char(chars, '}')
         },
-        Some(Ok(_)) => validate_literal(chars),
+        Some(Ok(c)) => {
+            if c.is_alphabetic() {validate_literal(chars)}
+            else {Err((Error::InvalidValue, Position{line:0, col:0, byte:0}, chars))}
+        },
         Some(Err(e)) => Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
         None => Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
     }
@@ -377,7 +380,7 @@ mod tests {
     fails!(validate_str, "1.0e-", Error::OutOfBounds, float_with_exponent_minus_but_without_digits_fails_to_parse);
     fails!(validate_str, "1.x", Error::DigitsNeeded, float_with_invalid_fraction_fails_to_parse);
     fails!(validate_str, "-1.y", Error::DigitsNeeded, negative_float_with_invalid_fraction_fails_to_parse);
-    fails!(validate_str, ".12", Error::UnrecognisedLiteral, float_without_integer_part_fails_to_parse);
+    fails!(validate_str, ".12", Error::InvalidValue, float_without_integer_part_fails_to_parse);
     fails!(validate_str, "-.12", Error::DigitsNeeded, negative_float_without_integer_part_fails_to_parse);
 
     // strings
