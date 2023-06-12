@@ -61,7 +61,8 @@ fn io_error(e: &std::io::Error) -> Error {
     Error::IoError(e.to_string())
 }
 
-fn validate<R: std::io::Read>(mut chars: Chars<R>) -> ValidationResult {
+fn validate<R: std::io::Read>(chars: Chars<R>) -> ValidationResult {
+    let mut chars = skip_ws(chars);
     if let None = chars.peek() {return Err((Error::EmptyString, Position{line:0, col:0, byte:0}));}
     match validate_value(chars) {
         Ok(_) => Ok(()),
@@ -90,7 +91,7 @@ fn skip<R: std::io::Read, F: Fn(char) -> bool>(mut chars: Chars<R>, f: F) -> Cha
 }
 
 fn skip_ws<R: std::io::Read>(chars: Chars<R>) -> Chars<R> {
-    todo!()
+    skip(chars, char::is_whitespace)
 }
 
 fn validate_with<R: std::io::Read, F: FnOnce(Chars<R>, char) -> ValidationPart<R>>(mut chars: Chars<R>, f: F) -> ValidationPart<R> {
@@ -142,7 +143,8 @@ fn validate_number_digits<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R
     Ok(chars)
 }
 
-fn validate_value<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
+fn validate_value<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
+    let mut chars = skip_ws(chars);
     match chars.peek() {
         Some(Ok('0'..='9')) => validate_number(chars),
         Some(Ok('-')) => validate_number(advance(chars)),
@@ -151,12 +153,14 @@ fn validate_value<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
             validate_char(chars, '"')
         },
         Some(Ok('[')) => {
-            let chars = validate_array_elements(advance(chars))?;
-            validate_char(chars, ']')
+            let chars = skip_ws(advance(chars));
+            let chars = validate_array_elements(chars)?;
+            validate_char(skip_ws(chars), ']')
         },
         Some(Ok('{')) => {
-            let chars = validate_object_pairs(advance(chars))?;
-            validate_char(chars, '}')
+            let chars = skip_ws(advance(chars));
+            let chars = validate_object_pairs(chars)?;
+            validate_char(skip_ws(chars), '}')
         },
         Some(Ok(c)) => {
             if c.is_alphabetic() {validate_literal(chars)}
@@ -255,8 +259,8 @@ fn validate_array_elements<R: std::io::Read>(mut chars: Chars<R>) -> ValidationP
     if let Some(Ok(']')) = chars.peek() {return Ok(chars);}
     loop {
         chars = validate_value(chars)?;
-        match validate_char(chars, ',') {
-            Ok(c) => {chars = c},
+        match validate_char(skip_ws(chars), ',') {
+            Ok(c) => {chars = skip_ws(c)},
             Err((_, _, c)) => {return Ok(c)},
         }
     }
@@ -266,10 +270,10 @@ fn validate_object_pairs<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPar
     if let Some(Ok('}')) = chars.peek() {return Ok(chars);}
     loop {
         chars = validate_string(chars)?;
-        chars = validate_char(chars, ':')?;
+        chars = validate_char(skip_ws(chars), ':')?;
         chars = validate_value(chars)?;
-        match validate_char(chars, ',') {
-            Ok(c) => {chars = c},
+        match validate_char(skip_ws(chars), ',') {
+            Ok(c) => {chars = skip_ws(c)},
             Err((_, _, c)) => {return Ok(c)},
         }
     }
