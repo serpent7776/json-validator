@@ -358,4 +358,26 @@ mod tests {
     ok!(validate_str, "false", false_parses_ok);
     fails!(validate_str, "truefalse", Error::UnrecognisedLiteral, unknown_ident_truefalse);
 
+    // numbers
+    ok!(validate_str, "42", number_parses_ok);
+    ok!(validate_str, "0", zero_parses_ok);
+    ok!(validate_str, "-1", negative_parses_ok);
+    ok!(validate_str, "1.23", float_parses_ok);
+    ok!(validate_str, "1.230", float_with_trailing_zero_parses_ok);
+    fails!(validate_str, "1.", Error::OutOfBounds, float_without_fraction_fails_to_parse);
+    fails!(validate_str, "0.", Error::OutOfBounds, zero_without_fraction_fails_to_parse);
+    fails!(validate_str, "-0.", Error::OutOfBounds, negative_zero_without_fraction_fails_to_parse);
+    ok!(validate_str, "6.999e3", float_with_exponent_parses_ok);
+    ok!(validate_str, "-1.2e9", negative_float_with_exponent_parses_ok);
+    fails!(validate_str, "6.999e", Error::OutOfBounds, float_without_exponent_fails_to_parse);
+    fails!(validate_str, "1.e1", Error::DigitsNeeded, float_with_dot_and_exponent_but_without_fraction_fails_to_parse);
+    ok!(validate_str, "1e1", float_with_exponent_but_without_fraction_parses_ok);
+    ok!(validate_str, "1e-1", float_with_negative_exponent_parses_ok);
+    ok!(validate_str, "1.0e-1", float_with_fraction_part_and_negative_exponent_parses_ok);
+    fails!(validate_str, "1.0e-", Error::OutOfBounds, float_with_exponent_minus_but_without_digits_fails_to_parse);
+    fails!(validate_str, "1.x", Error::DigitsNeeded, float_with_invalid_fraction_fails_to_parse);
+    fails!(validate_str, "-1.y", Error::DigitsNeeded, negative_float_with_invalid_fraction_fails_to_parse);
+    fails!(validate_str, ".12", Error::UnrecognisedLiteral, float_without_integer_part_fails_to_parse);
+    fails!(validate_str, "-.12", Error::DigitsNeeded, negative_float_without_integer_part_fails_to_parse);
+
 }
