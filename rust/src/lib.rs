@@ -175,8 +175,8 @@ fn validate_number<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
                 None => Ok(chars),
                 Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
                 Some(Ok('e')) => {
-                    let chars = validate_plus_or_minus(chars)?;
-                    Ok(validate_number_exponent_part(advance(chars))?)
+                    let chars = validate_plus_or_minus(advance(chars))?;
+                    Ok(validate_number_exponent_part(chars)?)
                 },
                 Some(Ok(_)) => return Ok(chars),
             }
@@ -198,7 +198,7 @@ fn validate_plus_or_minus<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R
         }
     }
 
-    let chars = skip(chars, |ch: char| is_plus_or_minus(ch));
+    let chars = skip(chars, is_plus_or_minus);
     Ok(chars)
 }
 
