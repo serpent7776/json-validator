@@ -47,7 +47,30 @@ impl std::fmt::Display for Error {
     }
 }
 
-type Chars<R> = std::iter::Peekable<CodePoints<std::io::Bytes<R>>>;
+struct Chars<R: std::io::Read> {
+    iter: std::iter::Peekable<CodePoints<std::io::Bytes<R>>>,
+}
+
+impl<R: std::io::Read> Iterator for Chars<R> {
+    type Item = <std::iter::Peekable<CodePoints<std::io::Bytes<R>>> as Iterator>::Item;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iter.next()
+    }
+}
+
+impl<R: std::io::Read> Chars<R> {
+    fn from_bytes(bytes: std::io::Bytes<R>) -> Chars<R> {
+        Chars {iter: CodePoints::from(bytes).peekable()}
+    }
+    fn from_str(s: &str) -> Chars<&[u8]> {
+        Chars {iter: CodePoints::from(<str as AsRef<[u8]>>::as_ref(s).bytes()).peekable()}
+    }
+
+    fn peek(&mut self) -> Option<&<std::iter::Peekable<CodePoints<std::io::Bytes<R>>> as Iterator>::Item> {
+        self.iter.peek()
+    }
+}
 
 type ValidationResult = Result<(), (Error, Position)>;
 type ValidationPart<R> = Result<Chars<R>, (Error, Position, Chars<R>)>;
@@ -71,11 +94,11 @@ fn validate<R: std::io::Read>(chars: Chars<R>) -> ValidationResult {
 }
 
 pub fn validate_bytes<R: std::io::Read>(bytes: std::io::Bytes<R>) -> ValidationResult {
-    validate(CodePoints::from(bytes).peekable())
+    validate(Chars::from_bytes(bytes))
 }
 
 pub fn validate_str(s: &str) -> ValidationResult {
-    validate(CodePoints::from(<str as AsRef<[u8]>>::as_ref(s).bytes()).peekable())
+    validate(Chars::<&[u8]>::from_str(s))
 }
 
 fn skip<R: std::io::Read, F: Fn(char) -> bool>(mut chars: Chars<R>, f: F) -> Chars<R> {
