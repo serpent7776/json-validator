@@ -2,6 +2,7 @@ use std::io::Read;
 
 use unicode_reader::CodePoints;
 
+#[derive(Clone)]
 pub struct Position {
     line: usize,
     col: usize,
@@ -103,7 +104,7 @@ fn io_error(e: &std::io::Error) -> Error {
 
 fn validate<R: std::io::Read>(chars: Chars<R>) -> ValidationResult {
     let mut chars = skip_ws(chars);
-    if let None = chars.peek() {return Err((Error::EmptyString, Position{line:0, col:0, byte:0}));}
+    if let None = chars.peek() {return Err((Error::EmptyString, chars.pos));}
     match validate_value(chars) {
         Ok(_) => Ok(()),
         Err((e, p, _)) => Err((e, p)),
@@ -136,8 +137,8 @@ fn skip_ws<R: std::io::Read>(chars: Chars<R>) -> Chars<R> {
 
 fn validate_with<R: std::io::Read, F: FnOnce(Chars<R>, char) -> ValidationPart<R>>(mut chars: Chars<R>, f: F) -> ValidationPart<R> {
     match chars.peek() {
-        None => Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
-        Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
+        None => Err((Error::OutOfBounds, chars.pos.clone(), chars)),
+        Some(Err(e)) => Err((io_error(e), chars.pos.clone(), chars)),
         Some(Ok(c)) => {
             let x = *c;
             f(chars, x)
@@ -148,14 +149,14 @@ fn validate_with<R: std::io::Read, F: FnOnce(Chars<R>, char) -> ValidationPart<R
 fn validate_char<R: std::io::Read>(chars: Chars<R>, ch: char) -> ValidationPart<R> {
     validate_with(chars, |chars: Chars<R>, c: char|
         if c == ch {Ok(advance(chars))}
-        else {Err((Error::CharMismatch{expected: ch, actual: c}, Position{line:0, col:0, byte:0}, chars))})
+        else {Err((Error::CharMismatch{expected: ch, actual: c}, chars.pos.clone(), chars))})
 }
 
 fn validate_escaped_char<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
     let escaped = ['\"', '\\', '\r', '\n', '\t', '\u{0008}', '\u{000C}'];
     validate_with(chars, |chars: Chars<R>, c: char|
         if escaped.contains(&c) {Ok(advance(chars))}
-        else {Err((Error::CharOutside{expected: escaped.into(), actual: c}, Position{line:0, col:0, byte:0}, chars))})
+        else {Err((Error::CharOutside{expected: escaped.into(), actual: c}, chars.pos.clone(), chars))})
 }
 
 fn validate_hex<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
@@ -165,7 +166,7 @@ fn validate_hex<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
 
     validate_with(chars, |chars: Chars<R>, c: char|
         if is_hex(c) {Ok(advance(chars))}
-        else {Err((Error::HexCharNeeded, Position{line:0, col:0, byte:0}, chars))})
+        else {Err((Error::HexCharNeeded, chars.pos.clone(), chars))})
 }
 
 fn validate_number_digits<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
@@ -178,7 +179,7 @@ fn validate_number_digits<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R
 
     let chars = validate_with(chars, |chars: Chars<R>, c: char|
         if is_digit(c) {Ok(advance(chars))}
-        else {Err((Error::DigitsNeeded, Position{line:0, col:0, byte:0}, chars))})?;
+        else {Err((Error::DigitsNeeded, chars.pos.clone(), chars))})?;
     let chars = skip(chars, is_digit);
     Ok(chars)
 }
@@ -204,10 +205,10 @@ fn validate_value<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
         },
         Some(Ok(c)) => {
             if c.is_alphabetic() {validate_literal(chars)}
-            else {Err((Error::InvalidValue, Position{line:0, col:0, byte:0}, chars))}
+            else {Err((Error::InvalidValue, chars.pos.clone(), chars))}
         },
-        Some(Err(e)) => Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
-        None => Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
+        Some(Err(e)) => Err((io_error(&e), chars.pos.clone(), chars)),
+        None => Err((Error::OutOfBounds, chars.pos.clone(), chars)),
     }
 }
 
@@ -215,12 +216,12 @@ fn validate_number<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
     let mut chars = validate_number_integer_part(chars)?;
     match chars.peek() {
         None => Ok(chars),
-        Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
+        Some(Err(e)) => Err((io_error(e), chars.pos.clone(), chars)),
         Some(Ok('.')) => {
             let mut chars = validate_number_fraction_part(advance(chars))?;
             match chars.peek() {
                 None => Ok(chars),
-                Some(Err(e)) => Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
+                Some(Err(e)) => Err((io_error(e), chars.pos.clone(), chars)),
                 Some(Ok('e')) => {
                     let chars = validate_plus_or_minus(advance(chars))?;
                     Ok(validate_number_exponent_part(chars)?)
@@ -272,8 +273,8 @@ fn validate_string_contents<R: std::io::Read>(mut chars: Chars<R>) -> Validation
     loop {
         chars = skip(chars, unescaped);
         match chars.peek() {
-            None => return Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
-            Some(Err(e)) => return Err((io_error(e), Position{line:0, col:0, byte:0}, chars)),
+            None => return Err((Error::OutOfBounds, chars.pos.clone(), chars)),
+            Some(Err(e)) => return Err((io_error(e), chars.pos.clone(), chars)),
             Some(Ok('"')) => return Ok(chars),
             Some(Ok('u')) => {
                 chars = validate_hex(chars)?;
@@ -326,11 +327,11 @@ fn validate_chars<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationP
             None => return Ok(chars),
             Some(s) =>
                 match chars.next() {
-                    None => return Err((Error::CharMissing(s), Position{line:0, col:0, byte:0}, chars)),
-                    Some(Err(e)) => return Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
+                    None => return Err((Error::CharMissing(s), chars.pos.clone(), chars)),
+                    Some(Err(e)) => return Err((io_error(&e), chars.pos.clone(), chars)),
                     Some(Ok(ch)) =>
                         if ch != s {
-                            return Err((Error::CharMismatch{expected: s, actual: ch}, Position{line:0, col:0, byte:0}, chars))
+                            return Err((Error::CharMismatch{expected: s, actual: ch}, chars.pos.clone(), chars))
                         },
                 },
         }
@@ -339,12 +340,12 @@ fn validate_chars<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationP
 
 fn validate_literal<R: std::io::Read>(mut chars: Chars<R>) -> ValidationPart<R> {
     match chars.next() {
-        None => return Err((Error::OutOfBounds, Position{line:0, col:0, byte:0}, chars)),
+        None => return Err((Error::OutOfBounds, chars.pos.clone(), chars)),
         Some(Ok('n')) => validate_chars(chars, "ull"),
         Some(Ok('t')) => validate_chars(chars, "rue"),
         Some(Ok('f')) => validate_chars(chars, "alse"),
-        Some(Ok(_)) => Err((Error::UnrecognisedLiteral, Position{line:0, col:0, byte:0}, chars)),
-        Some(Err(e)) => Err((io_error(&e), Position{line:0, col:0, byte:0}, chars)),
+        Some(Ok(_)) => Err((Error::UnrecognisedLiteral, chars.pos.clone(), chars)),
+        Some(Err(e)) => Err((io_error(&e), chars.pos.clone(), chars)),
     }
 }
 
