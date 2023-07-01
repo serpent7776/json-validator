@@ -8,6 +8,12 @@ pub struct Position {
     byte: usize,
 }
 
+impl Position {
+    fn new() -> Position {
+        Position{line: 1, col: 1, byte: 1}
+    }
+}
+
 impl std::fmt::Display for Position {
     fn fmt(&self, fmt: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(fmt, ":{}:{} ({} byte)", self.line, self.col, self.byte)
@@ -49,22 +55,33 @@ impl std::fmt::Display for Error {
 
 struct Chars<R: std::io::Read> {
     iter: std::iter::Peekable<CodePoints<std::io::Bytes<R>>>,
+    pos: Position,
 }
 
 impl<R: std::io::Read> Iterator for Chars<R> {
     type Item = <std::iter::Peekable<CodePoints<std::io::Bytes<R>>> as Iterator>::Item;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.iter.next()
+        let next = self.iter.next();
+        match &next {
+            Some(Ok('\n')) => {
+                self.pos.line += 1;
+                self.pos.col = 0;
+            },
+            _ => {},
+        }
+        self.pos.byte += 1;
+        self.pos.col += 1;
+        next
     }
 }
 
 impl<R: std::io::Read> Chars<R> {
     fn from_bytes(bytes: std::io::Bytes<R>) -> Chars<R> {
-        Chars {iter: CodePoints::from(bytes).peekable()}
+        Chars {iter: CodePoints::from(bytes).peekable(), pos: Position::new()}
     }
     fn from_str(s: &str) -> Chars<&[u8]> {
-        Chars {iter: CodePoints::from(<str as AsRef<[u8]>>::as_ref(s).bytes()).peekable()}
+        Chars {iter: CodePoints::from(<str as AsRef<[u8]>>::as_ref(s).bytes()).peekable(), pos: Position::new()}
     }
 
     fn peek(&mut self) -> Option<&<std::iter::Peekable<CodePoints<std::io::Bytes<R>>> as Iterator>::Item> {
