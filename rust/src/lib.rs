@@ -162,7 +162,7 @@ fn validate_char<R: std::io::Read>(chars: Chars<R>, ch: char) -> ValidationPart<
 }
 
 fn validate_escaped_char<R: std::io::Read>(chars: Chars<R>) -> ValidationPart<R> {
-    let escaped = ['\"', '\\', '\r', '\n', '\t', '\u{0008}', '\u{000C}'];
+    let escaped = ['"', '\\', 'r', 'n', 't', '\u{0008}', '\u{000C}'];
     validate_with(chars, |chars: Chars<R>, c: char|
         if escaped.contains(&c) {Ok(advance(chars))}
         else {Err((Error::CharOutside{expected: escaped.into(), actual: c}, chars.pos.clone(), chars))})
@@ -457,6 +457,7 @@ mod tests {
     ok!(validate_str, r#""foo\u12cdbar""#, string_with_inner_unicode_symbol_parses_ok);
     fails!(validate_str, r#""\u12cx""#, Error::HexCharNeeded, invalid_unicode_sequence);
     fails!(validate_str, r#""\"#, Error::OutOfBounds, missing_ending_quote_with_escaped_quote);
+    fails!(validate_str, r#""\x""#, Error::CharOutside{expected: vec!['"', '\\', 'r', 'n', 't', '\u{8}', '\u{c}'], actual: 'x'}, invalid_escape_sequence);
 
     // arrays
     ok!(validate_str, "[]", empty_array_parses_ok);
