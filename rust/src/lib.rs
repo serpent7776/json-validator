@@ -285,14 +285,20 @@ fn validate_string_contents<R: std::io::Read>(mut chars: Chars<R>) -> Validation
             None => return Err((Error::OutOfBounds, chars.pos.clone(), chars)),
             Some(Err(e)) => return Err((io_error(e), chars.pos.clone(), chars)),
             Some(Ok('"')) => return Ok(chars),
-            Some(Ok('u')) => {
-                chars = validate_hex(chars)?;
-                chars = validate_hex(chars)?;
-                chars = validate_hex(chars)?;
-                chars = validate_hex(chars)?;
-            },
             Some(Ok('\\')) => {
-                chars = validate_escaped_char(chars)?;
+                chars = advance(chars);
+                match chars.peek() {
+                    None => return Err((Error::OutOfBounds, chars.pos.clone(), chars)),
+                    Some(Err(e)) => return Err((io_error(e), chars.pos.clone(), chars)),
+                    Some(Ok('u')) => {
+                        chars = advance(chars);
+                        chars = validate_hex(chars)?;
+                        chars = validate_hex(chars)?;
+                        chars = validate_hex(chars)?;
+                        chars = validate_hex(chars)?;
+                    },
+                    Some(Ok(_)) => chars = validate_escaped_char(chars)?,
+                }
             },
             Some(Ok(_)) => unreachable!(),
         };
