@@ -34,6 +34,7 @@ pub enum Error {
     UnrecognisedLiteral,
     InvalidValue,
     OutOfBounds,
+    Garbage,
 }
 
 impl std::fmt::Display for Error {
@@ -50,6 +51,7 @@ impl std::fmt::Display for Error {
             Error::UnrecognisedLiteral => write!(fmt, "Unrecognised literal found"),
             Error::InvalidValue => write!(fmt, "Invalid value found"),
             Error::OutOfBounds => write!(fmt, "Unexpected end of input string"),
+            Error::Garbage => write!(fmt, "Trailing characters at the end of the string"),
         }
     }
 }
@@ -106,8 +108,15 @@ fn validate<R: std::io::Read>(chars: Chars<R>) -> ValidationResult {
     let mut chars = skip_ws(chars);
     if let None = chars.peek() {return Err((Error::EmptyString, chars.pos));}
     match validate_value(chars) {
-        Ok(_) => Ok(()),
         Err((e, p, _)) => Err((e, p)),
+        Ok(chars) => {
+            let mut chars = skip_ws(chars);
+            match chars.peek() {
+                None => Ok(()),
+                Some(Ok(_)) => Err((Error::Garbage, chars.pos.clone())),
+                Some(Err(e)) => Err((io_error(e), chars.pos.clone())),
+            }
+        },
     }
 }
 
@@ -437,7 +446,7 @@ mod tests {
     ok!(validate_str, r#""foo bar""#, string_with_space_parses_ok);
     ok!(validate_str, r#""foo/bar""#, string_with_slash_parses_ok);
     fails!(validate_str, r#""foobar"#, Error::OutOfBounds, missing_ending_quote_in_nonempty_string);
-    fails!(validate_str, r#""foo"bar"#, Error::InvalidValue, extra_letters_after_string);
+    fails!(validate_str, r#""foo"bar"#, Error::Garbage, extra_letters_after_string);
     fails!(validate_str, r#""foo\"bar"#, Error::OutOfBounds, missing_ending_quote_with_inner_escaped_quote);
     ok!(validate_str, r#""a b c""#, string_with_inner_spaces_parses_ok);
     ok!(validate_str, r#"" a b c ""#, string_with_leading_trailing_spaces_parses_ok);
