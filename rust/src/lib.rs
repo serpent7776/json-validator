@@ -339,8 +339,17 @@ fn validate_chars<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationP
     let mut s = s.chars();
     loop {
         match s.next() {
-            None => return Ok(chars),
-            Some(s) =>
+            None => {
+                match chars.peek() {
+                    None => return Ok(chars),
+                    Some(Err(e)) => return Err((io_error(&e), chars.pos.clone(), chars)),
+                    Some(Ok(ch)) => {
+                        if ch.is_alphabetic() {return Err((Error::UnrecognisedLiteral, chars.pos.clone(), chars))}
+                        else {return Ok(chars)}
+                    },
+                }
+            },
+            Some(s) => {
                 match chars.next() {
                     None => return Err((Error::CharMissing(s), chars.pos.clone(), chars)),
                     Some(Err(e)) => return Err((io_error(&e), chars.pos.clone(), chars)),
@@ -348,7 +357,8 @@ fn validate_chars<R: std::io::Read>(mut chars: Chars<R>, s: &str) -> ValidationP
                         if ch != s {
                             return Err((Error::CharMismatch{expected: s, actual: ch}, chars.pos.clone(), chars))
                         },
-                },
+                }
+            },
         }
     }
 }
