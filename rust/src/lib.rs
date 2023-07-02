@@ -388,7 +388,11 @@ mod tests {
                 expected_err,
                 actual_err
             ),
-            Ok(()) => {},
+            Ok(()) => assert!(
+                false,
+                "\n\tFailed for {}: Expected to fail with {}, but succeeded",
+                arg, expected_err
+            ),
         }
     }
 
