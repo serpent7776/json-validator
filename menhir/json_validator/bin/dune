@@ -1,0 +1,14 @@
+(executable
+ (public_name json_validator)
+ (name main)
+ (libraries json_validator menhirLib))
+
+(ocamllex
+ (modules lexer)
+)
+
+(menhir
+ (modules parser)
+ (flags --explain --dump)
+ (infer true)
+ )
