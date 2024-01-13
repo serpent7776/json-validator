@@ -11,7 +11,7 @@ let int0 = '0' | nonzero digit*
 
 rule token = parse
   | [' ' '\t' '\n' '\r']+   { token lexbuf }
-  | '"'                     { ignore (astring lexbuf); STRING }
+  | '"'                     { astring lexbuf; STRING }
   | '{'                     { LBRACE }
   | '}'                     { RBRACE }
   | '['                     { LBRACKET }
@@ -26,15 +26,15 @@ rule token = parse
   | _ as c                  { failwith (Printf.sprintf "unexpected character: %C" c) }
 
 and astring = parse
-  | [^ '"' '\\']+ { ignore (astring lexbuf); "" }
-  | '"'           { "" }
-  | '\\' '"'      { ignore (astring lexbuf); "" }
-  | '\\' '\\'     { ignore (astring lexbuf); "" }
-  | '\\' '/'      { ignore (astring lexbuf); "" }
-  | '\\' 'b'      { ignore (astring lexbuf); "" }
-  | '\\' 'f'      { ignore (astring lexbuf); "" }
-  | '\\' 'n'      { ignore (astring lexbuf); "" }
-  | '\\' 'r'      { ignore (astring lexbuf); "" }
-  | '\\' 't'      { ignore (astring lexbuf); "" }
-  | '\\' 'u' hex hex hex hex { ignore (astring lexbuf); "" }
+  | [^ '"' '\\']+ { astring lexbuf }
+  | '"'           { () }
+  | '\\' '"'      { astring lexbuf }
+  | '\\' '\\'     { astring lexbuf }
+  | '\\' '/'      { astring lexbuf }
+  | '\\' 'b'      { astring lexbuf }
+  | '\\' 'f'      { astring lexbuf }
+  | '\\' 'n'      { astring lexbuf }
+  | '\\' 'r'      { astring lexbuf }
+  | '\\' 't'      { astring lexbuf }
+  | '\\' 'u' hex hex hex hex { astring lexbuf }
   | eof           { failwith "EOF" }
