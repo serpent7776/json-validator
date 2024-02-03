@@ -1,0 +1,53 @@
+grammar;
+
+pub json: () = {
+	value => (),
+};
+
+value: () = {
+	object => (),
+	array => (),
+	string => (),
+	number => (),
+	null => (),
+	bool => (),
+};
+
+object: () = {
+	"{" members? "}" => (),
+};
+
+members: () = {
+	key_value => (),
+	key_value "," members => (),
+};
+
+key_value: () = {
+	string ":" value => (),
+};
+
+array: () = {
+	"[" items? "]" => (),
+};
+
+items: () = {
+	value => (),
+	value "," items => (),
+};
+
+string: () = {
+	r#""(\\["\\\/bfnrt]|\\u[0-9a-fA-F]{4}|[^"\\\u0000-\u001F])*""# => (),
+};
+
+number: () = {
+	r#"-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][-+]?[0-9]+)?"# => (),
+};
+
+null: () = {
+	"null" => (),
+};
+
+bool: () = {
+	"true" => (),
+	"false" => (),
+};
